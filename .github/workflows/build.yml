@@ -1,0 +1,129 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.project }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: fabric-1.20.1
+            java: 17
+          - project: forge-1.20.1
+            java: 17
+          - project: fabric-1.21.1
+            java: 21
+          - project: neoforge-1.21.1
+            java: 21
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+
+      # Gradle itself runs on Java 21 (the last one listed above); each project
+      # compiles for its own Java version (17 for 1.20.1, 21 for 1.21.1).
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        working-directory: ${{ matrix.project }}
+        run: |
+          chmod +x gradlew
+          ./gradlew build --stacktrace
+
+      - name: Collect jar
+        run: |
+          mkdir -p out
+          find "${{ matrix.project }}/build/libs" -name '*.jar' \
+            ! -name '*-sources.jar' ! -name '*-dev*.jar' ! -name '*-slim.jar' \
+            -exec cp {} out/ \;
+          ls -l out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.project }}
+          path: out/*.jar
+          if-no-files-found: error
+
+  release:
+    name: Attach jars to the release
+    needs: build
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: jars
+          merge-multiple: true
+      - name: Upload to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" jars/*.jar --repo "${{ github.repository }}" --clobber
+
+  publish:
+    name: Publish ${{ matrix.project }}
+    needs: build
+    # Runs only after the Modrinth / CurseForge IDs are set as repository variables
+    # and the tokens as repository secrets (MODRINTH_TOKEN, CURSEFORGE_TOKEN).
+    if: github.event_name == 'release' && (vars.MODRINTH_ID != '' || vars.CURSEFORGE_ID != '')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: fabric-1.20.1
+            loaders: fabric
+            game: 1.20.1
+            java: 17
+            deps: fabric-api(required){modrinth:P7dR8mSH}{curseforge:306612}
+          - project: forge-1.20.1
+            loaders: forge
+            game: 1.20.1
+            java: 17
+          - project: fabric-1.21.1
+            loaders: fabric
+            game: 1.21.1
+            java: 21
+            deps: fabric-api(required){modrinth:P7dR8mSH}{curseforge:306612}
+          - project: neoforge-1.21.1
+            loaders: neoforge
+            game: 1.21.1
+            java: 21
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.project }}
+          path: jar
+
+      - uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          modrinth-id: ${{ vars.MODRINTH_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          curseforge-id: ${{ vars.CURSEFORGE_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          files: jar/*.jar
+          name: Nether Star Crafting ${{ github.event.release.tag_name }} (${{ matrix.project }})
+          version: ${{ github.event.release.tag_name }}+${{ matrix.project }}
+          version-type: release
+          changelog: ${{ github.event.release.body }}
+          loaders: ${{ matrix.loaders }}
+          game-versions: ${{ matrix.game }}
+          java: ${{ matrix.java }}
+          dependencies: ${{ matrix.deps }}

@@ -1,0 +1,28 @@
+{
+	"schemaVersion": 1,
+	"id": "netherstarrecipe",
+	"version": "${version}",
+	"name": "Nether Star Crafting",
+	"description": "ネザースターのクラフトレシピと、新しい中間素材「ネザースターの欠片」を追加します。\nAdds craftable recipes for the Nether Star and a new intermediate item, the Netherstar Shard.",
+	"authors": [
+		"Mya"
+	],
+	"license": "MIT",
+	"icon": "assets/netherstarrecipe/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.mya.netherstarrecipe.Netherstarrecipe"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~1.20.1",
+		"java": ">=17",
+		"fabric-api": "*"
+	},
+	"contact": {
+		"homepage": "https://www.curseforge.com/minecraft/mc-mods/nether-star-crafting",
+		"sources": "https://github.com/MyaJP/Nether-Star-Crafting"
+	}
+}
