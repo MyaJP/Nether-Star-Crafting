@@ -20,13 +20,13 @@ jobs:
       matrix:
         include:
           - project: fabric-1.20.1
-            java: 17
+            gradle_java: 25
           - project: forge-1.20.1
-            java: 17
+            gradle_java: 21
           - project: fabric-1.21.1
-            java: 21
+            gradle_java: 25
           - project: neoforge-1.21.1
-            java: 21
+            gradle_java: 21
     steps:
       - uses: actions/checkout@v4
 
@@ -36,9 +36,12 @@ jobs:
           java-version: |
             17
             21
+            25
 
-      # Gradle itself runs on Java 21 (the last one listed above); each project
-      # compiles for its own Java version (17 for 1.20.1, 21 for 1.21.1).
+      # Each project compiles for its own Java (17 for 1.20.1, 21 for 1.21.1).
+      # Gradle itself: Fabric Loom 1.18 needs Java 25; ForgeGradle / NeoForge run on 21.
+      - name: Pick the Java that runs Gradle
+        run: echo "JAVA_HOME=$JAVA_HOME_${{ matrix.gradle_java }}_X64" >> "$GITHUB_ENV"
 
       - uses: gradle/actions/setup-gradle@v4
 
