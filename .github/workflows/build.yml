@@ -6,6 +6,11 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Create the release (v + VERSION) and upload to Modrinth / CurseForge'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -66,8 +71,8 @@ jobs:
 
   release:
     name: Create the GitHub release
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, release]
+    if: (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -78,14 +83,16 @@ jobs:
       - name: Create the release with the jars
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" jars/*.jar --title "${{ github.ref_name }}" --notes-file release-notes.md --repo "${{ github.repository }}"
+        run: |
+          TAG="v$(tr -d '[:space:]' < VERSION)"
+          gh release create "$TAG" jars/*.jar --target "${{ github.sha }}" --title "$TAG" --notes-file release-notes.md --repo "${{ github.repository }}"
 
   publish:
     name: Publish ${{ matrix.project }}
     needs: build
     # Runs only after the Modrinth / CurseForge IDs are set as repository variables
     # and the tokens as repository secrets (MODRINTH_TOKEN, CURSEFORGE_TOKEN).
-    if: startsWith(github.ref, 'refs/tags/v') && (vars.MODRINTH_ID != '' || vars.CURSEFORGE_ID != '')
+    if: (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish)) && (vars.MODRINTH_ID != '' || vars.CURSEFORGE_ID != '')
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -111,6 +118,9 @@ jobs:
             java: 21
     steps:
       - uses: actions/checkout@v4
+      - name: Read VERSION
+        id: v
+        run: echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.project }}
@@ -123,8 +133,8 @@ jobs:
           curseforge-id: ${{ vars.CURSEFORGE_ID }}
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           files: jar/*.jar
-          name: Nether Star Crafting ${{ github.ref_name }} (${{ matrix.project }})
-          version: ${{ github.ref_name }}+${{ matrix.project }}
+          name: Nether Star Crafting ${{ steps.v.outputs.version }} (${{ matrix.project }})
+          version: ${{ steps.v.outputs.version }}+${{ matrix.project }}
           version-type: release
           changelog-file: release-notes.md
           loaders: ${{ matrix.loaders }}
