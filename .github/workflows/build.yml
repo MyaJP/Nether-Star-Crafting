@@ -130,3 +130,24 @@ jobs:
           game-versions: ${{ matrix.game }}
           java: ${{ matrix.java }}
           dependencies: ${{ matrix.deps }}
+
+  dist:
+    name: Push jars to the dist branch
+    needs: build
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: jars
+          merge-multiple: true
+      - name: Commit the latest jars to the dist branch
+        run: |
+          cd jars
+          sha256sum *.jar > SHA256SUMS
+          git init -q -b dist
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Jars built from ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" dist
